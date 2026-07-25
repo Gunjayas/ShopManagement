@@ -1,0 +1,310 @@
+# Project Overview
+
+Inventory and sales management app for a solo-owner clothing shop. The owner
+imports clothing bundles from abroad, tracks arrivals and transit loss, manages
+individual item pricing, records sales, and views monthly financial reports.
+
+## Stack
+
+- **Frontend:** React 18 + TypeScript, Tailwind CSS, shadcn/ui, React Router v6, Vite
+- **Backend:** Node.js + TypeScript, Fastify, REST API
+- **Database:** SQLite via Prisma ORM (`shop.db`)
+- **Host:** Android (Termux) — the built frontend is served as static files by Fastify on port 3000
+
+## Repo Structure
+
+```
+project-root/
+├── client/          # Vite + React frontend
+│   └── src/
+│       ├── pages/
+│       ├── components/
+│       └── lib/
+├── server/          # Fastify backend
+│   └── src/
+│       ├── routes/
+│       ├── services/
+│       └── prisma/
+├── shared/
+│   └── types.ts     # Shared TypeScript interfaces — source of truth
+├── prisma/
+│   └── schema.prisma
+└── shop.db
+```
+
+## Dev Commands
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start both client (Vite, port 5173) and server (tsx watch, port 3000) |
+| `npm run build` | Vite build → `client/dist/`, which Fastify serves |
+| `npm run typecheck` | TypeScript check across client + server + shared |
+| `npm run lint` | ESLint across all packages |
+| `npx prisma migrate dev` | Apply schema changes and regenerate Prisma client |
+| `npx prisma generate` | Regenerate Prisma client without migrating |
+| `npx prisma studio` | Open visual DB browser at localhost:5555 |
+
+## Definition of Done
+
+A task is complete when:
+1. `npm run build` exits 0
+2. `npm run typecheck` reports no errors
+3. `npm run lint` reports no warnings
+4. The feature works on a 390px-wide screen (Android primary client)
+
+
+-------------------------------
+
+# Business Logic — Immutable Rules
+
+These rules come from the design doc (§3, §6). They must never be changed,
+worked around, or silently violated. When in doubt, stop and ask.
+
+## The Two Core Units
+
+- **Bundle** = purchasing unit. One shipment of many identical items from a supplier.
+- **InventoryItem** = selling unit. One individual physical item, generated from a bundle on arrival.
+
+One bundle → many inventory items. Items are always sold individually, never as a bundle.
+
+## Cost Price: Fixed at Order Time
+
+```
+InventoryItem.cost_price = Bundle.cost_per_item
+```
+
+- This is a **direct copy** at the moment inventory items are generated. No formula. No division.
+- It is **never recalculated** after that point — not when other bundles in the same order arrive,
+  not when items are lost, not ever.
+- `cost_price` on an InventoryItem is **read-only** after creation. No endpoint may update it.
+
+## Transportation Fee: Kept Separate
+
+- `Order.transportation_fee` is a lump business expense stored at the Order level.
+- It **never** flows into any item's `cost_price`.
+- It appears **only** in the monthly P&L as its own line item.
+- No code should divide transportation_fee across bundles or items.
+
+## Bundle Total Cost: Never Stored
+
+```
+bundle_total_cost = items_ordered × cost_per_item   ← display only
+```
+
+This is computed for display when needed. It is **not** a column in the DB.
+
+## Arrival: Transactions Are Required
+
+When a bundle is marked `arrived`, three things happen atomically:
+1. Bundle status → `arrived`, `items_received` and `arrival_date` saved
+2. Exactly `items_received` InventoryItem rows created, each with `cost_price = bundle.cost_per_item`
+3. If `items_received < items_ordered`: one LossEntry created (see below)
+
+These **must** be in a single Prisma `$transaction`. If any step fails, all roll back.
+
+When a bundle is marked `lost`, two things happen atomically:
+1. Bundle status → `lost`, `items_received = 0`
+2. One LossEntry created with `loss_type = full_bundle`
+
+Also a single `$transaction`. No InventoryItems are created for a lost bundle.
+
+## Partial Arrival: Inventory Is Not Blocked
+
+If `items_received < items_ordered`:
+- The `items_received` items **are generated immediately** as sellable inventory.
+- A LossEntry is created for the shortfall.
+- The bundle is **not** held back. What arrived is sellable right away.
+
+## Loss Entries: Immutable History
+
+Once created, a LossEntry's core fields are **never modified**:
+
+| Field | Mutable after creation? |
+|---|---|
+| `loss_type` | ❌ No |
+| `items_lost` | ❌ No |
+| `loss_value` | ❌ No |
+| `loss_date` | ❌ No |
+| `recovery_status` | ✅ Yes (via recovery endpoint only) |
+| `recovery_value` | ✅ Yes (via recovery endpoint only) |
+| `recovery_date` | ✅ Yes (via recovery endpoint only) |
+
+Recovery is **additive** — it records what happened later, it does not rewrite history.
+
+## Monthly P&L: Date Attribution
+
+```
+Total item profit      = SUM(Sale.profit)         WHERE sale_date       IN month
+Total transit losses   = SUM(LossEntry.loss_value) WHERE loss_date       IN month
+Total recoveries       = SUM(LossEntry.recovery_value) WHERE recovery_date IN month
+Transportation fees    = SUM(Order.transportation_fee)  WHERE order_date    IN month
+
+True monthly profit = item_profit − transportation_fees − transit_losses + recoveries
+```
+
+Each event counts in the month it **actually happened**, not the month the parent record was created.
+A recovery in Month B is **never** retroactively applied to Month A. Do not combine loss_date
+and recovery_date in the same filter.
+
+## Sale Guardrails
+
+Floor price is a **hard server-side block**:
+```
+IF selling_price < floor_price → HTTP 422, nothing written to DB
+```
+
+Discount warning is **frontend-only**:
+```
+IF (listed_price − selling_price) / listed_price > max_discount_percent → show warning
+```
+The server does not enforce the discount warning. The sale still goes through.
+
+## Sale Profit: Stored at Time of Sale
+
+```
+Sale.profit = selling_price − InventoryItem.cost_price
+```
+
+Calculated once and stored. Not recalculated dynamically on read.
+
+
+----------------------------------
+
+# Coding Standards
+
+## TypeScript
+
+- Strict mode is on. No `any`. No `@ts-ignore`. No `@ts-expect-error`.
+- Use types from `shared/types.ts` wherever they exist. Do not redefine them locally.
+- When adding a new shared type, add it to `shared/types.ts` — not inline in a route or component.
+- `async/await` only. No `.then()` chains.
+- Always type function return values explicitly on service functions and route handlers.
+
+## Backend (Fastify + Prisma)
+
+- Business logic belongs in `server/src/services/`. Route handlers call service functions — they
+  do not contain logic themselves. A route handler should be ≤ 20 lines.
+- DB access is **only** via the Prisma client. No raw SQL unless Prisma cannot express the query,
+  and even then, ask first.
+- Prisma `$transaction` is required any time two or more DB writes must succeed or fail together.
+  Never do sequential `await prisma.x.create()` + `await prisma.y.create()` for atomic operations.
+- Return appropriate HTTP status codes: 200 for reads, 201 for creates, 422 for business-rule
+  violations (floor price block, invalid state transitions), 404 for missing records, 400 for
+  malformed input.
+- Never update `schema.prisma` without explicit instruction from the user.
+- Never run `prisma migrate reset` without explicit instruction from the user.
+
+## Frontend (React + Vite)
+
+- Mobile-first. All UI must be usable at 390px width. No horizontal scroll on small screens.
+  Use responsive Tailwind classes (`sm:`, `md:`) to enhance for larger screens, not to fix mobile.
+- Use shadcn/ui primitives (Table, Dialog, Form, Select, Badge) — do not roll bespoke UI for
+  things shadcn already covers.
+- Tailwind utility classes only. No custom CSS files. No inline `style=` except for truly
+  dynamic values that Tailwind cannot express.
+- Keep components small and single-purpose. If a component exceeds ~150 lines, split it.
+- No `console.log` in committed code.
+
+## API Conventions
+
+- All endpoints are under `/api/`.
+- REST resource naming: `/api/orders`, `/api/orders/:id`, `/api/orders/:id/bundles`, etc.
+- Request and response bodies are JSON.
+- Validation errors return `{ error: string }`. Business-rule blocks return `{ error: string, code: string }`.
+
+## Dependencies
+
+- Do not install new npm packages without asking the user first.
+- Prefer packages already in `package.json`. If something new is genuinely needed, propose it
+  and wait for approval before running `npm install`.
+
+## What Never to Do
+
+- Touch `schema.prisma` without being asked
+- Run `prisma migrate reset`
+- Divide `transportation_fee` into item costs
+- Set `cost_price` on InventoryItem to anything other than `Bundle.cost_per_item` at creation time
+- Modify `loss_value`, `loss_date`, or `loss_type` on an existing LossEntry
+- Apply a recovery in the month the loss occurred instead of the month the recovery occurred
+
+
+--------------------------------------
+# Schema Reference
+
+Quick reference so the agent doesn't have to re-read schema.prisma for every task.
+The authoritative source is always `prisma/schema.prisma`.
+
+## Entities and Key Fields
+
+### Order
+| Field | Type | Notes |
+|---|---|---|
+| order_id | ID | PK |
+| supplier_or_country | String | e.g. "China" |
+| order_date | DateTime | |
+| transportation_fee | Float | Lump business expense. Never touches item cost. |
+| expected_bundle_count | Int | |
+| status | Enum | `ongoing` \| `closed` |
+
+### Bundle
+| Field | Type | Notes |
+|---|---|---|
+| bundle_id | ID | PK |
+| order_id | ID | FK → Order |
+| type | String | e.g. "Topset", "Kurthi" |
+| design_name | String | e.g. "Rammaya" |
+| items_ordered | Int | Set at creation, never changes |
+| cost_per_item | Float | Fixed at order time |
+| status | Enum | `pending` \| `arrived` \| `lost` \| `refunded` \| `replaced` |
+| items_received | Int? | Null until arrival |
+| arrival_date | DateTime? | Null until arrival |
+
+### InventoryItem
+| Field | Type | Notes |
+|---|---|---|
+| item_id | ID | PK |
+| bundle_id | ID | FK → Bundle |
+| variant | String? | Size/color if items differ |
+| cost_price | Float | **Copied from Bundle.cost_per_item at creation. Never changes.** |
+| marked_price | Float? | Anchor/reference price |
+| listed_price | Float? | Price shown to customer |
+| target_price | Float? | Realistic expected selling price |
+| floor_price | Float? | Minimum acceptable selling price |
+| max_discount_percent | Float? | Warning threshold |
+| status | Enum | `in_stock` \| `sold` \| `damaged` \| `returned` |
+
+### Sale
+| Field | Type | Notes |
+|---|---|---|
+| sale_id | ID | PK |
+| item_id | ID | FK → InventoryItem |
+| sale_date | DateTime | |
+| selling_price | Float | |
+| profit | Float | `selling_price − cost_price`. Stored at sale time. |
+
+### LossEntry
+| Field | Type | Notes |
+|---|---|---|
+| loss_id | ID | PK |
+| bundle_id | ID | FK → Bundle |
+| loss_type | Enum | `full_bundle` \| `partial` |
+| items_lost | Int | `items_ordered − items_received` |
+| loss_value | Float | `items_lost × cost_per_item` |
+| loss_date | DateTime | When loss was recorded |
+| recovery_status | Enum | `none` \| `pending_claim` \| `refunded` \| `replaced` |
+| recovery_value | Float? | Null until recovered |
+| recovery_date | DateTime? | Null until recovered |
+
+## Immutability Summary
+
+| Field | Writable at creation | Writable later |
+|---|---|---|
+| InventoryItem.cost_price | ✅ | ❌ |
+| LossEntry.loss_value | ✅ | ❌ |
+| LossEntry.loss_date | ✅ | ❌ |
+| LossEntry.loss_type | ✅ | ❌ |
+| LossEntry.recovery_value | ❌ | ✅ (recovery endpoint) |
+| LossEntry.recovery_date | ❌ | ✅ (recovery endpoint) |
+| LossEntry.recovery_status | ❌ | ✅ (recovery endpoint) |
+
+---------------------------------------

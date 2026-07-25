@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum OrderStatus {
+  ongoing
+  closed
+}
+
+enum BundleStatus {
+  pending
+  arrived
+  lost
+  refunded
+  replaced
+}
+
+enum ItemStatus {
+  in_stock
+  sold
+  damaged
+  returned
+}
+
+enum LossType {
+  full_bundle
+  partial
+}
+
+enum RecoveryStatus {
+  none
+  pending_claim
+  refunded
+  replaced
+}
+
+model Order {
+  id                    String      @id @default(cuid())
+  supplierOrCountry     String
+  orderDate             DateTime
+  transportationFee     Float
+  expectedBundleCount   Int
+  status                OrderStatus @default(ongoing)
+
+  bundles               Bundle[]
+
+  @@map("orders")
+}
+
+model Bundle {
+  id               String       @id @default(cuid())
+  orderId          String
+  order            Order        @relation(fields: [orderId], references: [id])
+
+  type             String
+  designName       String
+  itemsOrdered     Int
+  costPerItem      Float
+  status           BundleStatus @default(pending)
+  itemsReceived    Int?
+  arrivalDate      DateTime?
+
+  inventoryItems   InventoryItem[]
+  lossEntries      LossEntry[]
+
+  @@map("bundles")
+}
+
+model InventoryItem {
+  id                 String     @id @default(cuid())
+  bundleId           String
+  bundle             Bundle     @relation(fields: [bundleId], references: [id])
+
+  variant            String?
+  costPrice          Float
+  markedPrice        Float
+  listedPrice        Float
+  targetPrice        Float
+  floorPrice         Float
+  maxDiscountPercent Float
+  status             ItemStatus @default(in_stock)
+
+  sales              Sale[]
+
+  @@map("inventory_items")
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  itemId        String
+  item          InventoryItem @relation(fields: [itemId], references: [id])
+
+  saleDate      DateTime
+  sellingPrice  Float
+  profit        Float
+
+  @@map("sales")
+}
+
+model LossEntry {
+  id              String          @id @default(cuid())
+  bundleId        String
+  bundle          Bundle          @relation(fields: [bundleId], references: [id])
+
+  lossType        LossType
+  itemsLost       Int
+  lossValue       Float
+  lossDate        DateTime
+  recoveryStatus  RecoveryStatus  @default(none)
+  recoveryValue   Float?
+  recoveryDate    DateTime?
+
+  @@map("loss_entries")
+}

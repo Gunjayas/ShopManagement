@@ -1,0 +1,13 @@
+{
+  "name": "shop-inventory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
