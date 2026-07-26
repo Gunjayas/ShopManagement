@@ -1,4 +1,4 @@
-import type { Prisma, Sale } from '../../generated/prisma/client.js';
+import type { Prisma, Sale } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/app-error.js';
 import { requireDate, requireNonNegativeNumber, requireRecord, requireText } from '../lib/validation.js';

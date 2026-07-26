@@ -1,4 +1,4 @@
-import type { Bundle, LossEntry, Prisma, RecoveryStatus } from '../../generated/prisma/client.js';
+import type { Bundle, LossEntry, Prisma, RecoveryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/app-error.js';
 import { requireDate, requireNonNegativeInteger, requireNonNegativeNumber, requireRecord, requireText } from '../lib/validation.js';

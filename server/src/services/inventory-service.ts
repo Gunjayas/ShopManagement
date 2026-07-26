@@ -1,4 +1,4 @@
-import type { InventoryItem, ItemStatus, Prisma } from '../../generated/prisma/client.js';
+import type { InventoryItem, ItemStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/app-error.js';
 import { requireNonNegativeNumber, requireRecord } from '../lib/validation.js';
