@@ -8,6 +8,8 @@ import { AppError } from './src/lib/app-error.js';
 import { registerOrderRoutes } from './src/routes/orders.js';
 import { registerBundleRoutes } from './src/routes/bundles.js';
 import { registerInventoryRoutes } from './src/routes/inventory.js';
+import { registerSaleRoutes } from './src/routes/sales.js';
+import { registerLossEntryRoutes } from './src/routes/loss-entries.js';
 
 const app = Fastify({ logger: true });
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
@@ -25,6 +27,8 @@ const isBadRequestError = (error: unknown): boolean => {
 await registerOrderRoutes(app);
 await registerBundleRoutes(app);
 await registerInventoryRoutes(app);
+await registerSaleRoutes(app);
+await registerLossEntryRoutes(app);
 
 // Serve the production client from Fastify so the shop can run as one Termux process.
 await app.register(staticFiles, { root: join(projectDirectory, 'client/dist'), wildcard: false });

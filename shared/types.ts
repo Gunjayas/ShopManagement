@@ -76,3 +76,36 @@ export interface LossEntry {
   recoveryValue: number | null;
   recoveryDate: string | null;
 }
+
+// Give sale screens the item and bundle identity needed to explain each stored profit.
+export interface SaleWithItem extends Sale {
+  item: InventoryItem & { bundle: Bundle };
+}
+
+// Give loss screens the original bundle and supplier context without a second request.
+export interface LossEntryWithBundle extends LossEntry {
+  bundle: Bundle & { order: Order };
+}
+
+// Describe the only values the server accepts when recording one completed sale.
+export interface CreateSaleInput {
+  item_id: string;
+  sale_date: string;
+  selling_price: number;
+}
+
+// Describe a replacement purchasing unit created as a distinct pending bundle.
+export interface ReplacementBundleInput {
+  type: string;
+  design_name: string;
+  items_ordered: number;
+  cost_per_item: number;
+}
+
+// Describe additive recovery details while keeping immutable loss history out of the request.
+export interface RecoverLossInput {
+  recovery_status: 'refunded' | 'replaced';
+  recovery_value: number;
+  recovery_date: string;
+  new_bundle?: ReplacementBundleInput;
+}

@@ -42,3 +42,34 @@ export const updateInventoryPricing = async (itemId: string, body: unknown): Pro
     },
   });
 };
+
+// Remove an unsellable physical item from available stock with no reversal path.
+export const damageInventoryItem = async (itemId: string): Promise<InventoryItem> => {
+  const itemToDamage = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+  if (!itemToDamage) throw new AppError(404, 'not_found', 'The inventory item to mark as damaged could not be found.');
+  // business rule: damage is terminal and is allowed only from in_stock.
+  if (itemToDamage.status !== 'in_stock') {
+    throw new AppError(422, 'business_rule_violation', 'Only an in-stock item can be marked as damaged.', 'ITEM_NOT_IN_STOCK');
+  }
+  return prisma.inventoryItem.update({ where: { id: itemId }, data: { status: 'damaged' } });
+};
+
+// Reverse a completed sale by deleting its history and restoring only the item's stock status.
+export const returnInventoryItem = async (itemId: string): Promise<InventoryItem> => {
+  return prisma.$transaction(async (transaction): Promise<InventoryItem> => {
+    const itemToReturn = await transaction.inventoryItem.findUnique({ where: { id: itemId } });
+    if (!itemToReturn) throw new AppError(404, 'not_found', 'The sold inventory item to return could not be found.');
+    // business rule: return is allowed only from sold and immediately restores in_stock.
+    if (itemToReturn.status !== 'sold') {
+      throw new AppError(422, 'business_rule_violation', 'Only a sold item can be processed as a return.', 'ITEM_NOT_SOLD');
+    }
+    const latestSale = await transaction.sale.findFirst({ where: { itemId }, orderBy: { saleDate: 'desc' } });
+    if (!latestSale) {
+      throw new AppError(422, 'business_rule_violation', 'This sold item has no sale record to return.', 'SALE_NOT_FOUND_FOR_ITEM');
+    }
+    // business rule: a return hard-deletes the sale instead of retaining a voided sale row.
+    await transaction.sale.delete({ where: { id: latestSale.id } });
+    // business rule: all fixed and owner-set pricing fields remain untouched during a return.
+    return transaction.inventoryItem.update({ where: { id: itemId }, data: { status: 'in_stock' } });
+  });
+};

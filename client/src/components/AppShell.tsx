@@ -11,7 +11,7 @@ export function AppShell({ children }: AppShellProps): ReactNode {
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <NavLink to="/orders" className="text-xl font-bold tracking-tight">Thread & Stock</NavLink>
-        <nav className="flex gap-2" aria-label="Main navigation"><NavLink to="/orders" className={linkClass}>Orders</NavLink><NavLink to="/inventory" className={linkClass}>Inventory</NavLink></nav>
+        <nav className="flex flex-wrap gap-2" aria-label="Main navigation"><NavLink to="/orders" className={linkClass}>Orders</NavLink><NavLink to="/inventory" className={linkClass}>Inventory</NavLink><NavLink to="/sales" className={linkClass}>Sales</NavLink><NavLink to="/loss-entries" className={linkClass}>Losses</NavLink></nav>
       </div>
     </header>
     <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">{children}</main>

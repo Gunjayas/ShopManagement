@@ -1,4 +1,4 @@
-import type { Bundle, InventoryItem, Order } from '@shared/types';
+import type { Bundle, InventoryItem, LossEntry, LossEntryWithBundle, Order, RecoverLossInput, Sale, SaleWithItem } from '@shared/types';
 
 interface ApiErrorBody { message?: string; error?: string }
 
@@ -51,3 +51,21 @@ export const fetchInventory = async (status: string): Promise<Array<InventoryIte
 
 // Save only the five editable price controls for an inventory item.
 export const patchPricing = async (itemId: string, pricingValues: unknown): Promise<InventoryItem> => requestJson<InventoryItem>(`/api/inventory/${itemId}/pricing`, { method: 'PATCH', body: JSON.stringify(pricingValues) });
+
+// Record one sale through the server's floor-price guard and immutable profit calculation.
+export const postSale = async (saleValues: unknown): Promise<Sale> => requestJson<Sale>('/api/sales', { method: 'POST', body: JSON.stringify(saleValues) });
+
+// Fetch newest sales with item, bundle, design, and variant context for the sales ledger.
+export const fetchSales = async (): Promise<SaleWithItem[]> => requestJson<SaleWithItem[]>('/api/sales');
+
+// Mark an available item as damaged with the server's one-way lifecycle rule.
+export const markInventoryDamaged = async (itemId: string): Promise<InventoryItem> => requestJson<InventoryItem>(`/api/inventory/${itemId}/damage`, { method: 'PATCH', body: JSON.stringify({}) });
+
+// Process a return by hard-deleting the sale and restoring the item to stock atomically.
+export const returnInventoryItem = async (itemId: string): Promise<InventoryItem> => requestJson<InventoryItem>(`/api/inventory/${itemId}/return`, { method: 'PATCH', body: JSON.stringify({}) });
+
+// Fetch newest transit-loss records with original bundle and supplier context.
+export const fetchLossEntries = async (): Promise<LossEntryWithBundle[]> => requestJson<LossEntryWithBundle[]>('/api/loss-entries');
+
+// Save only additive recovery fields and any distinct replacement bundle details.
+export const recoverLossEntry = async (lossEntryId: string, recoveryValues: RecoverLossInput): Promise<LossEntry> => requestJson<LossEntry>(`/api/loss-entries/${lossEntryId}/recover`, { method: 'PATCH', body: JSON.stringify(recoveryValues) });
