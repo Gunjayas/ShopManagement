@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "start": "node dist/server/index.js",
     "prisma:studio": "prisma studio",
     "prisma:migrate": "prisma migrate dev"
   },
