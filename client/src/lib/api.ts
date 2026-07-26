@@ -1,4 +1,4 @@
-import type { Bundle, InventoryItem, LossEntry, LossEntryWithBundle, Order, RecoverLossInput, Sale, SaleWithItem } from '@shared/types';
+import type { Bundle, BundleProfitabilityReportItem, DeadStockReportItem, DiscountLeakageReport, InventoryItem, LossEntry, LossEntryWithBundle, MonthlyPlReport, MoverReportItem, Order, RecoverLossInput, Sale, SaleWithItem, TransitLossReport } from '@shared/types';
 
 interface ApiErrorBody { message?: string; error?: string }
 
@@ -69,3 +69,21 @@ export const fetchLossEntries = async (): Promise<LossEntryWithBundle[]> => requ
 
 // Save only additive recovery fields and any distinct replacement bundle details.
 export const recoverLossEntry = async (lossEntryId: string, recoveryValues: RecoverLossInput): Promise<LossEntry> => requestJson<LossEntry>(`/api/loss-entries/${lossEntryId}/recover`, { method: 'PATCH', body: JSON.stringify(recoveryValues) });
+
+// Fetch the month's profit, losses, recoveries, and transportation fees with correct date attribution.
+export const fetchMonthlyPl = async (month: string): Promise<MonthlyPlReport> => requestJson<MonthlyPlReport>(`/api/reports/monthly-pl?month=${encodeURIComponent(month)}`);
+
+// Fetch in-stock units older than the selected bundle-arrival age threshold.
+export const fetchDeadStock = async (days: number): Promise<DeadStockReportItem[]> => requestJson<DeadStockReportItem[]>(`/api/reports/dead-stock?days=${days}`);
+
+// Fetch type-and-design mover groups already aggregated by the database.
+export const fetchMovers = async (): Promise<MoverReportItem[]> => requestJson<MoverReportItem[]>('/api/reports/movers');
+
+// Fetch transit losses and their recovery-adjusted summary for all time or one loss month.
+export const fetchTransitLosses = async (month?: string): Promise<TransitLossReport> => requestJson<TransitLossReport>(`/api/reports/transit-losses${month ? `?month=${encodeURIComponent(month)}` : ''}`);
+
+// Fetch listed-price discount leakage for the selected sales month.
+export const fetchDiscountLeakage = async (month: string): Promise<DiscountLeakageReport> => requestJson<DiscountLeakageReport>(`/api/reports/discount-leakage?month=${encodeURIComponent(month)}`);
+
+// Fetch every bundle's historical profit, loss, and net result without status filtering.
+export const fetchBundleProfitability = async (): Promise<BundleProfitabilityReportItem[]> => requestJson<BundleProfitabilityReportItem[]>('/api/reports/bundle-profitability');

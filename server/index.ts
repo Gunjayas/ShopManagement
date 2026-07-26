@@ -10,6 +10,7 @@ import { registerBundleRoutes } from './src/routes/bundles.js';
 import { registerInventoryRoutes } from './src/routes/inventory.js';
 import { registerSaleRoutes } from './src/routes/sales.js';
 import { registerLossEntryRoutes } from './src/routes/loss-entries.js';
+import { registerReportRoutes } from './src/routes/reports.js';
 
 const app = Fastify({ logger: true });
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
@@ -29,6 +30,7 @@ await registerBundleRoutes(app);
 await registerInventoryRoutes(app);
 await registerSaleRoutes(app);
 await registerLossEntryRoutes(app);
+await registerReportRoutes(app);
 
 // Serve the production client from Fastify so the shop can run as one Termux process.
 await app.register(staticFiles, { root: join(projectDirectory, 'client/dist'), wildcard: false });

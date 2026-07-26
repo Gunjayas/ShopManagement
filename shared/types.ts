@@ -109,3 +109,75 @@ export interface RecoverLossInput {
   recovery_date: string;
   new_bundle?: ReplacementBundleInput;
 }
+
+// Keep report responses consistent between the API and the mobile report screens.
+export interface MonthlyPlReport {
+  total_item_profit: number;
+  total_transit_losses: number;
+  total_recoveries: number;
+  transportation_fees: number;
+  true_monthly_profit: number;
+}
+
+// Describe one in-stock unit that has remained unsold beyond the selected threshold.
+export interface DeadStockReportItem {
+  item_id: string;
+  variant: string | null;
+  type: string;
+  design_name: string;
+  cost_price: number;
+  listed_price: number;
+  days_in_stock: number;
+}
+
+// Describe the database-aggregated sales speed for one type and design.
+export interface MoverReportItem {
+  type: string;
+  design_name: string;
+  units_sold: number;
+  avg_days_to_sale: number | null;
+}
+
+// Describe a loss record with the bundle and recovery values needed for reporting.
+export interface TransitLossReportItem {
+  loss_id: string;
+  type: string;
+  design_name: string;
+  supplier_or_country: string;
+  loss_date: string;
+  loss_type: LossType;
+  loss_value: number;
+  recovery_status: RecoveryStatus;
+  recovery_value: number;
+  net_loss: number;
+}
+
+// Return both the transit-loss detail rows and their database-calculated totals.
+export interface TransitLossReport {
+  entries: TransitLossReportItem[];
+  total_loss_value: number;
+  total_recovery_value: number;
+  total_net_loss: number;
+}
+
+// Summarize price leakage against the listed price for sales in one month.
+export interface DiscountLeakageReport {
+  total_leakage: number;
+  sale_count: number;
+  avg_discount_per_sale: number;
+}
+
+// Describe all historical profitability values for one bundle.
+export interface BundleProfitabilityReportItem {
+  bundle_id: string;
+  type: string;
+  design_name: string;
+  status: BundleStatus;
+  supplier_or_country: string;
+  items_ordered: number;
+  items_received: number;
+  total_profit: number;
+  total_loss: number;
+  net: number;
+  units_sold: number;
+}
