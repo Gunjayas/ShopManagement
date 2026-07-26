@@ -36,12 +36,17 @@ await registerReportRoutes(app);
 await app.register(staticFiles, { root: join(projectDirectory, 'client/dist'), wildcard: false });
 
 // Keep client-side routes working when the owner refreshes a detail page.
-app.setNotFoundHandler(async (request, reply): Promise<void> => {
-  if (request.url.startsWith('/api/')) {
+app.get('/*', async (request, reply): Promise<void> => {
+  const requestPath = request.url.split('?', 1)[0];
+  if (requestPath === '/api' || requestPath.startsWith('/api/')) {
     await reply.status(404).send({ error: 'not_found', message: 'The requested API endpoint does not exist.' });
     return;
   }
   await reply.sendFile('index.html');
+});
+
+app.setNotFoundHandler(async (_request, reply): Promise<void> => {
+  await reply.status(404).send({ error: 'not_found', message: 'The requested endpoint does not exist.' });
 });
 
 // Translate known service failures into consistent, plain-English API responses.
